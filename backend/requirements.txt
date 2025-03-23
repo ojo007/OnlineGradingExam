@@ -1,0 +1,28 @@
+# Core dependencies
+fastapi>=0.103.1
+uvicorn>=0.23.2
+pydantic>=2.3.0
+pydantic-settings>=2.0.3
+python-dotenv>=1.0.0
+bcrypt-3.2.0
+
+# Database
+sqlalchemy>=2.0.20
+pymysql>=1.1.0
+cryptography>=41.0.3  # Required for PyMySQL
+
+# Authentication
+python-jose>=3.3.0
+passlib>=1.7.4
+python-multipart>=0.0.6  # For handling form data
+
+# Email validation
+email-validator>=2.0.0
+
+# NLP dependencies (optional but recommended for descriptive answer grading)
+nltk>=3.8.1
+sentence-transformers>=2.2.2
+transformers>=4.33.1
+
+# Production (optional)
+gunicorn>=21.2.0
