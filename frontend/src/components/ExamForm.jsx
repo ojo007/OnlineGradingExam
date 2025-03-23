@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const ExamForm = () => {
+const ExamForm = ({ examData, onExamCreated }) => {
   const { examId } = useParams();
   const navigate = useNavigate();
   const isEditing = !!examId;
@@ -17,13 +17,25 @@ const ExamForm = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    // If editing an existing exam, fetch its data
-    if (isEditing) {
+    // If exam data is provided, use it to populate the form
+    if (examData) {
+      setFormData({
+        title: examData.title || '',
+        description: examData.description || '',
+        duration_minutes: examData.duration_minutes || 60,
+        passing_score: examData.passing_score || 70,
+        is_randomized: examData.is_randomized || false,
+        status: examData.status || 'draft'
+      });
+    }
+    // If editing an existing exam but no data provided, fetch it
+    else if (isEditing) {
       fetchExamData();
     }
-  }, [examId]);
+  }, [examData, isEditing, examId]);
 
   const fetchExamData = async () => {
     try {
@@ -65,6 +77,7 @@ const ExamForm = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       const token = localStorage.getItem('token');
@@ -91,11 +104,18 @@ const ExamForm = () => {
 
       const savedExam = await response.json();
 
-      // Redirect to add questions or back to exam list
       if (isEditing) {
-        navigate(`/exams`);
+        // Show success message for edit
+        setSuccess('Exam updated successfully!');
+        setTimeout(() => setSuccess(''), 2000);
       } else {
-        navigate(`/exams/${savedExam.id}/questions`);
+        // Call callback with new exam ID
+        if (onExamCreated) {
+          onExamCreated(savedExam.id);
+        }
+
+        // For new exams, redirect to questions tab
+        navigate(`/exams/${savedExam.id}/edit`);
       }
     } catch (err) {
       setError(err.message);
@@ -105,12 +125,18 @@ const ExamForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-6">{isEditing ? 'Edit Exam' : 'Create New Exam'}</h2>
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-6">{isEditing ? 'Edit Exam Details' : 'Create New Exam'}</h2>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {success}
         </div>
       )}
 

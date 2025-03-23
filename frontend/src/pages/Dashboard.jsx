@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import ExamList from '../components/ExamList';
 
-const Dashboard = () => {
+const Dashboard = ({ userRole, onLogout }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -224,14 +224,14 @@ const Dashboard = () => {
           </button>
 
           <button
-            onClick={() => navigate('/exams/manage')}
+            onClick={() => navigate('/exams')}
             className="w-full p-3 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"
           >
             <span>Manage Existing Exams</span>
           </button>
 
           <button
-            onClick={() => navigate('/results/all')}
+            onClick={() => navigate('/results')}
             className="w-full p-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center justify-center"
           >
             <span>View All Student Results</span>

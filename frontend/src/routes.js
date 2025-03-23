@@ -10,6 +10,8 @@ import ExamView from './pages/ExamView';
 import ResultsView from './pages/ResultsView';
 import QuestionEditor from './pages/QuestionEditor';
 import AllResults from './pages/AllResults';
+import ExamList from './components/ExamList';
+import Header from './components/Header';
 
 // Protected route component
 const ProtectedRoute = ({
@@ -73,7 +75,12 @@ const AppRoutes = ({ isAuthenticated, userRole, onLogin, onLogout }) => {
         path="/exams"
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated} userRole={userRole}>
-            <Dashboard userRole={userRole} onLogout={onLogout} />
+            <>
+              <Header isLoggedIn={isAuthenticated} userRole={userRole} />
+              <div className="container mx-auto px-4 py-8">
+                <ExamList userRole={userRole} />
+              </div>
+            </>
           </ProtectedRoute>
         }
       />
@@ -93,6 +100,15 @@ const AppRoutes = ({ isAuthenticated, userRole, onLogin, onLogout }) => {
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated} userRole={userRole}>
             <ResultsView />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/results"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} userRole={userRole}>
+            <AllResults />
           </ProtectedRoute>
         }
       />

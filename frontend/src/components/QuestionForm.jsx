@@ -23,7 +23,58 @@ const QuestionForm = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [examTitle, setExamTitle] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Fetch existing questions for the exam
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+
+        // Fetch exam details to get the title
+        const examResponse = await fetch(`http://localhost:8000/api/v1/exams/${examId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (examResponse.ok) {
+          const examData = await examResponse.json();
+          setExamTitle(examData.title);
+        }
+
+        // Fetch questions for this exam
+        const questionsResponse = await fetch(`http://localhost:8000/api/v1/exams/${examId}/questions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (questionsResponse.ok) {
+          const questionsData = await questionsResponse.json();
+          setQuestions(questionsData);
+
+          // Set next question order
+          if (questionsData.length > 0 && !isEditing) {
+            const maxOrder = Math.max(...questionsData.map(q => q.order || 0));
+            setFormData(prev => ({
+              ...prev,
+              order: maxOrder + 1
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      }
+    };
+
+    fetchQuestions();
+  }, [examId, isEditing]);
+
+  // If editing an existing question, fetch its data
   useEffect(() => {
     if (isEditing) {
       fetchQuestionData();
@@ -101,10 +152,44 @@ const QuestionForm = () => {
     });
   };
 
+  const handleDeleteQuestion = async (questionId) => {
+    if (!window.confirm('Are you sure you want to delete this question?')) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`http://localhost:8000/api/v1/exams/questions/${questionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete question');
+      }
+
+      // Remove the question from the list
+      setQuestions(questions.filter(q => q.id !== questionId));
+      setSuccess('Question deleted successfully');
+
+      // Wait 2 seconds then clear success message
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       const token = localStorage.getItem('token');
@@ -137,8 +222,46 @@ const QuestionForm = () => {
         throw new Error(errorData.detail || 'Failed to save question');
       }
 
-      // Redirect back to exam editing
-      navigate(`/exams/${examId}/edit`);
+      const savedQuestion = await response.json();
+
+      if (isEditing) {
+        // Navigate back to exam page if editing
+        navigate(`/exams/${examId}/edit`);
+      } else {
+        // Refresh the questions list
+        const updatedQuestionsResponse = await fetch(`http://localhost:8000/api/v1/exams/${examId}/questions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (updatedQuestionsResponse.ok) {
+          const updatedQuestions = await updatedQuestionsResponse.json();
+          setQuestions(updatedQuestions);
+        }
+
+        // Reset form for next question
+        setFormData({
+          exam_id: examId,
+          text: '',
+          question_type: 'multiple_choice',
+          points: 1,
+          order: formData.order + 1,
+          options: [
+            { id: 'A', text: '', is_correct: false },
+            { id: 'B', text: '', is_correct: false },
+            { id: 'C', text: '', is_correct: false },
+            { id: 'D', text: '', is_correct: false }
+          ],
+          correct_answer: ''
+        });
+
+        // Show success message
+        setSuccess('Question added successfully! You can add another question or click "Done" when finished.');
+
+        // Scroll to top
+        window.scrollTo(0, 0);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -231,8 +354,67 @@ const QuestionForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
+    <div className="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6">{isEditing ? 'Edit Question' : 'Add Question'}</h2>
+      <p className="text-gray-600 mb-6">For exam: {examTitle}</p>
+
+      {/* Display existing questions */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-2">Questions in this Exam ({questions.length})</h3>
+        {questions.length > 0 ? (
+          <div className="border rounded-md overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {questions.map((question, index) => (
+                  <tr key={question.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 whitespace-nowrap">{index + 1}</td>
+                    <td className="px-4 py-2">
+                      {question.text.length > 50
+                        ? `${question.text.substring(0, 50)}...`
+                        : question.text}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {question.question_type.replace('_', ' ')}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">{question.points}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-right">
+                      <button
+                        onClick={() => navigate(`/exams/${examId}/questions/${question.id}`)}
+                        className="text-indigo-600 hover:text-indigo-900 mr-3"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteQuestion(question.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-600">No questions added yet.</p>
+        )}
+      </div>
+
+      {success && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {success}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -323,6 +505,13 @@ const QuestionForm = () => {
             disabled={loading}
           >
             {loading ? 'Saving...' : 'Save Question'}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/exams/${examId}/edit`)}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Done Adding Questions
           </button>
         </div>
       </form>

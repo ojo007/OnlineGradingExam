@@ -290,3 +290,32 @@ def get_exam_questions(
     # Get questions
     questions = db.query(Question).filter(Question.exam_id == exam_id).all()
     return questions
+
+@router.get("/questions/{question_id}", response_model=QuestionResponse)
+def get_question(
+    question_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Get a specific question by id.
+    """
+    # Get question
+    question = db.query(Question).filter(Question.id == question_id).first()
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found"
+        )
+
+    # Get exam to check permissions
+    exam = db.query(Exam).filter(Exam.id == question.exam_id).first()
+
+    # Check permissions based on role
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN] and exam.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this question"
+        )
+
+    return question

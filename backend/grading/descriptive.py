@@ -29,6 +29,7 @@ if os.path.exists(nltk_data_dir):
         print("Found punkt tokenizer in local directory")
     except LookupError:
         print("Punkt tokenizer not found in local directory")
+        TOKENIZER_AVAILABLE = False
 
     try:
         nltk.data.find('corpora/stopwords')

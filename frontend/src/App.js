@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router } from 'react-router-dom';
+import { BrowserRouter as Router, useNavigate } from 'react-router-dom';
 import AppRoutes from './routes';
 
+// We need to wrap our main component in a Router context provider
+// and use a child component that can access the useNavigate hook
 function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
+  );
+}
+
+// This component will have access to routing hooks
+function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if user is authenticated on app load
@@ -61,6 +73,8 @@ function App() {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
     setUserRole(null);
+    // Important: Navigate to login page after logout
+    navigate('/login');
   };
 
   if (loading) {
@@ -75,14 +89,12 @@ function App() {
   }
 
   return (
-    <Router>
-      <AppRoutes
-        isAuthenticated={isAuthenticated}
-        userRole={userRole}
-        onLogin={handleLogin}
-        onLogout={handleLogout}
-      />
-    </Router>
+    <AppRoutes
+      isAuthenticated={isAuthenticated}
+      userRole={userRole}
+      onLogin={handleLogin}
+      onLogout={handleLogout}
+    />
   );
 }
 

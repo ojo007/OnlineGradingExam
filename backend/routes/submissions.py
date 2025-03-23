@@ -255,25 +255,24 @@ def get_exam_results(
     return results
 
 
-@router.get("/results/users/{user_id}", response_model=List[ResultResponse])
-def get_user_results(
-        user_id: int,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
+@router.get("/results/users", response_model=List[ResultResponse])
+def get_all_user_results(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ) -> Any:
     """
-    Get all results for a specific user. Teachers and admins can see any user's results.
+    Get all results across all exams. Teachers and admins can see all results.
     Students can only see their own results.
     """
     # Check permissions
-    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN] and current_user.id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view these results"
-        )
-
-    # Get user's results
-    results = db.query(Result).filter(Result.student_id == user_id).all()
+    if current_user.role in [UserRole.TEACHER, UserRole.ADMIN]:
+        # Teachers and admins can see all results
+        results = db.query(Result).order_by(Result.created_at.desc()).all()
+    else:
+        # Students can only see their own results
+        results = db.query(Result).filter(
+            Result.student_id == current_user.id
+        ).order_by(Result.created_at.desc()).all()
 
     return results
 
@@ -369,3 +368,44 @@ def manual_grade_submission(
         db.commit()
 
     return submission
+
+@router.get("/results/all", response_model=List[ResultResponse])
+def get_all_results(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Get all results. Teachers and admins can see all results.
+    Students can only see their own results.
+    """
+    # Check permissions
+    if current_user.role in [UserRole.TEACHER, UserRole.ADMIN]:
+        # Teachers and admins can see all results
+        results = db.query(Result).all()
+    else:
+        # Students can only see their own results
+        results = db.query(Result).filter(Result.student_id == current_user.id).all()
+
+    return results
+
+@router.get("/results/users/{user_id}", response_model=List[ResultResponse])
+def get_user_results(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Get all results for a specific user. Teachers and admins can see any user's results.
+    Students can only see their own results.
+    """
+    # Check permissions
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN] and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view these results"
+        )
+
+    # Get user's results
+    results = db.query(Result).filter(Result.student_id == user_id).all()
+
+    return results

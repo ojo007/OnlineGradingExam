@@ -62,8 +62,23 @@ const AllResults = () => {
           const examData = await examResponse.json();
           setExam(examData);
 
-          // Fetch results for this exam
+          // Fetch results for this specific exam
           const resultsResponse = await fetch(`http://localhost:8000/api/v1/submissions/results/exams/${examId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (!resultsResponse.ok) {
+            throw new Error('Failed to fetch results');
+          }
+
+          const resultsData = await resultsResponse.json();
+          setResults(resultsData);
+        } else {
+          // Fetch all results when no examId is provided
+          // We need a separate endpoint for all results
+          const resultsResponse = await fetch(`http://localhost:8000/api/v1/submissions/results/users`, {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -117,7 +132,7 @@ const AllResults = () => {
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold">
-            {exam ? `Results for ${exam.title}` : 'Exam Results'}
+            {exam ? `Results for ${exam.title}` : 'All Exam Results'}
           </h1>
           {exam && (
             <p className="text-gray-600">
@@ -142,6 +157,7 @@ const AllResults = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exam</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
@@ -154,6 +170,11 @@ const AllResults = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {result.student?.full_name || result.student?.username || 'Unknown Student'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {result.exam?.title || 'Unknown Exam'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

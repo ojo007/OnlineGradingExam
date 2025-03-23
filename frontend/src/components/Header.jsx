@@ -1,13 +1,13 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 const Header = ({ isLoggedIn, userRole }) => {
-  const navigate = useNavigate();
-
   const handleLogout = () => {
-    // Clear token from localStorage
+    // Clear the token
     localStorage.removeItem('token');
-    navigate('/login');
+
+    // Force a complete page refresh and redirect to login
+    window.location.href = '/login';
   };
 
   return (
@@ -31,7 +31,7 @@ const Header = ({ isLoggedIn, userRole }) => {
 
                 {/* For students */}
                 {userRole === 'student' && (
-                  <li><Link to="/exams/active">Available Exams</Link></li>
+                  <li><Link to="/exams">Available Exams</Link></li>
                 )}
 
                 <li><Link to="/results">My Results</Link></li>

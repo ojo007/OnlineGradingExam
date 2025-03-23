@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import ExamForm from '../components/ExamForm';
+import ExamQuestionsTab from '../components/ExamQuestionsTab';
 
 const ExamCreator = () => {
   const { examId } = useParams();
@@ -9,6 +10,8 @@ const ExamCreator = () => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('details'); // 'details' or 'questions'
+  const [examData, setExamData] = useState(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -45,6 +48,22 @@ const ExamCreator = () => {
         }
 
         setUserData(userData);
+
+        // If editing an exam, fetch its data
+        if (examId) {
+          const examResponse = await fetch(`http://localhost:8000/api/v1/exams/${examId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (!examResponse.ok) {
+            throw new Error('Failed to fetch exam data');
+          }
+
+          const examData = await examResponse.json();
+          setExamData(examData);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -53,7 +72,15 @@ const ExamCreator = () => {
     };
 
     fetchUserData();
-  }, [navigate]);
+  }, [navigate, examId]);
+
+  const handleExamCreated = (newExamId) => {
+    // If a new exam was created, redirect to questions tab
+    if (newExamId && !examId) {
+      navigate(`/exams/${newExamId}/edit`);
+      setActiveTab('questions');
+    }
+  };
 
   if (loading) {
     return <div className="text-center p-10">Loading...</div>;
@@ -77,7 +104,38 @@ const ExamCreator = () => {
           </p>
         </div>
 
-        <ExamForm />
+        {examId && (
+          <div className="mb-6">
+            <nav className="flex border-b">
+              <button
+                className={`py-2 px-4 ${
+                  activeTab === 'details'
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+                onClick={() => setActiveTab('details')}
+              >
+                Exam Details
+              </button>
+              <button
+                className={`py-2 px-4 ${
+                  activeTab === 'questions'
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+                onClick={() => setActiveTab('questions')}
+              >
+                Questions
+              </button>
+            </nav>
+          </div>
+        )}
+
+        {(activeTab === 'details' || !examId) ? (
+          <ExamForm examData={examData} onExamCreated={handleExamCreated} />
+        ) : (
+          <ExamQuestionsTab examId={examId} />
+        )}
       </div>
     </div>
   );
