@@ -197,8 +197,10 @@ const QuestionForm = () => {
       // Prepare the request payload
       const payload = { ...formData };
 
-      // For true/false and short answer types, we don't need options
-      if (formData.question_type === 'true_false' || formData.question_type === 'short_answer') {
+      // For true/false, short answer, and descriptive types, we don't need options
+      if (formData.question_type === 'true_false' ||
+          formData.question_type === 'short_answer' ||
+          formData.question_type === 'descriptive') {
         delete payload.options;
       }
 

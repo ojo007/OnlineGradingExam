@@ -61,7 +61,7 @@ def grade_multiple_choice(question: Question, submitted_answer: str) -> tuple[bo
 
 def grade_true_false(question: Question, submitted_answer: str) -> tuple[bool, float]:
     """
-    Grade a true/false question.
+    Grade a true/false question with improved case-insensitive comparison.
 
     Args:
         question: The Question object containing the correct answer
@@ -70,9 +70,9 @@ def grade_true_false(question: Question, submitted_answer: str) -> tuple[bool, f
     Returns:
         Tuple of (is_correct, points_earned)
     """
-    # Normalize answers for comparison
+    # Normalize answers for comparison - make fully case-insensitive
     submitted_answer = submitted_answer.strip().lower()
-    correct_answer = question.correct_answer.strip().lower()
+    correct_answer = question.correct_answer.strip().lower() if question.correct_answer else ""
 
     # Convert various forms of true/false to standardized format
     true_values = ['true', 't', 'yes', 'y', '1']
@@ -93,5 +93,13 @@ def grade_true_false(question: Question, submitted_answer: str) -> tuple[bool, f
     # Check if the answers match
     if submitted_bool and correct_bool and submitted_bool == correct_bool:
         return True, question.points
+
+    # Direct string comparison fallback if standardization fails
+    if submitted_answer == correct_answer:
+        return True, question.points
+
+    # Log the mismatch for debugging
+    print(f"True/False grading failed: submitted='{submitted_answer}', correct='{correct_answer}'")
+    print(f"Standardized: submitted_bool='{submitted_bool}', correct_bool='{correct_bool}'")
 
     return False, 0.0

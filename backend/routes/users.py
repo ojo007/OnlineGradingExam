@@ -36,21 +36,31 @@ def get_user(
 ) -> Any:
     """
     Get a specific user by id. Admin users can access any user.
+    Teachers can access student information.
     Normal users can only access their own user information.
     """
-    # Check if user is admin or the requested user is the current user
-    if current_user.role != UserRole.ADMIN and current_user.id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only access your own user information"
-        )
-
-    # Get user
+    # Get the requested user first to check their role
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
+        )
+
+    # Allow access if any of these conditions are true:
+    # 1. Current user is admin (can access any user)
+    # 2. Current user is teacher AND requested user is a student
+    # 3. User is accessing their own information
+    has_permission = (
+            current_user.role == UserRole.ADMIN or
+            (current_user.role == UserRole.TEACHER and user.role == UserRole.STUDENT) or
+            current_user.id == user_id
+    )
+
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this user information"
         )
 
     return user

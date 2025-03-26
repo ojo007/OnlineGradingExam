@@ -62,7 +62,37 @@ const Dashboard = ({ userRole, onLogout }) => {
 
           if (resultsResponse.ok) {
             const resultsData = await resultsResponse.json();
-            setRecentResults(resultsData);
+
+            // For each result, fetch the detailed report to get recalculated scores
+            const enhancedResults = await Promise.all(resultsData.map(async (result) => {
+              let calculatedScore = null;
+
+              try {
+                const reportResponse = await fetch(`http://localhost:8000/api/v1/submissions/report/exam/${result.id}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (reportResponse.ok) {
+                  const reportData = await reportResponse.json();
+                  if (reportData.total_points !== undefined && reportData.percentage_score !== undefined) {
+                    calculatedScore = {
+                      total_points: reportData.total_points,
+                      percentage_score: reportData.percentage_score,
+                      passed: reportData.passed
+                    };
+                  }
+                }
+              } catch (error) {
+                console.error("Error fetching report:", error);
+              }
+
+              return {
+                ...result,
+                calculatedScore: calculatedScore
+              };
+            }));
+
+            setRecentResults(enhancedResults);
           }
         }
 
@@ -132,17 +162,25 @@ const Dashboard = ({ userRole, onLogout }) => {
                   <div>
                     <h4 className="font-medium">{result.exam?.title || 'Exam'}</h4>
                     <p className="text-sm text-gray-600">
-                      Score: {result.percentage_score.toFixed(1)}% |
+                      Score: {result.calculatedScore ? result.calculatedScore.percentage_score.toFixed(1) : result.percentage_score.toFixed(1)}% |
                       Completed: {formatDate(result.completed_at)}
                     </p>
                   </div>
                   <span className={`px-2 py-1 text-xs rounded-full ${
-                    result.passed
+                    (result.calculatedScore ? result.calculatedScore.passed : result.passed)
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
-                    {result.passed ? 'PASSED' : 'FAILED'}
+                    {(result.calculatedScore ? result.calculatedScore.passed : result.passed) ? 'PASSED' : 'FAILED'}
                   </span>
+                </div>
+                <div className="mt-2">
+                  <button
+                    onClick={() => navigate(`/results/${result.id}`)}
+                    className="text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    View Details
+                  </button>
                 </div>
               </div>
             ))}
@@ -285,10 +323,10 @@ const Dashboard = ({ userRole, onLogout }) => {
           </button>
 
           <button
-            onClick={() => navigate('/system/settings')}
+            onClick={() => navigate('/results')}
             className="w-full p-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center justify-center"
           >
-            <span>System Settings</span>
+            <span>View Results</span>
           </button>
         </div>
       </div>

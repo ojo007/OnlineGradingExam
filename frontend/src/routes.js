@@ -95,6 +95,7 @@ const AppRoutes = ({ isAuthenticated, userRole, onLogin, onLogout }) => {
         }
       />
 
+      {/* Results routes - accessible to all users but with different data shown */}
       <Route
         path="/results/:resultId"
         element={

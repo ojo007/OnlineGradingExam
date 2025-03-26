@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import Header from '../components/Header';
 
 const TakeExam = () => {
   const { examId } = useParams();
@@ -13,10 +14,45 @@ const TakeExam = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [userData, setUserData] = useState(null);
 
   useEffect(() => {
     fetchExamData();
   }, [examId]);
+
+  useEffect(() => {
+    // Fetch user data for Header component
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
+        const response = await fetch('http://localhost:8000/api/v1/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            navigate('/login');
+          }
+          return;
+        }
+
+        const data = await response.json();
+        setUserData(data);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
 
   useEffect(() => {
     // Set up timer if exam is loaded
@@ -39,6 +75,11 @@ const TakeExam = () => {
   const fetchExamData = async () => {
     try {
       const token = localStorage.getItem('token');
+
+      if (!token) {
+        navigate('/login');
+        return;
+      }
 
       // Fetch exam details
       const examResponse = await fetch(`http://localhost:8000/api/v1/exams/${examId}`, {
@@ -73,7 +114,7 @@ const TakeExam = () => {
       // Sort questions by order if not randomized
       const sortedQuestions = examData.is_randomized
         ? [...questionsData].sort(() => Math.random() - 0.5)
-        : [...questionsData].sort((a, b) => a.order - b.order);
+        : [...questionsData].sort((a, b) => (a.order || 0) - (b.order || 0));
 
       setQuestions(sortedQuestions);
 
@@ -111,69 +152,69 @@ const TakeExam = () => {
   };
 
   const handleSubmitExam = async () => {
-  if (submitting) return;
+    if (submitting) return;
 
-  const allQuestionsAnswered = questions.every(q => answers[q.id] !== '');
+    const allQuestionsAnswered = questions.every(q => answers[q.id] !== '');
 
-  if (!allQuestionsAnswered) {
-    const confirmSubmit = window.confirm(
-      'You have not answered all questions. Are you sure you want to submit?'
-    );
+    if (!allQuestionsAnswered) {
+      const confirmSubmit = window.confirm(
+        'You have not answered all questions. Are you sure you want to submit?'
+      );
 
-    if (!confirmSubmit) {
-      return;
-    }
-  }
-
-  setSubmitting(true);
-
-  try {
-    const token = localStorage.getItem('token');
-
-    // Format the submission data
-    const submissions = Object.keys(answers).map(questionId => ({
-      question_id: parseInt(questionId),
-      answer: answers[questionId]
-    }));
-
-    const payload = {
-      exam_id: parseInt(examId), // Make sure examId is defined and not undefined
-      submissions
-    };
-
-    console.log("Submitting exam payload:", payload); // Add logging
-
-    const response = await fetch('http://localhost:8000/api/v1/submissions/exam', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to submit exam');
+      if (!confirmSubmit) {
+        return;
+      }
     }
 
-    const result = await response.json();
-    console.log("Submission result:", result); // Add logging
+    setSubmitting(true);
 
-    // Navigate to results page with the result ID, not the exam ID
-    if (result && result.id) {
-      navigate(`/results/${result.id}`, { state: { result } });
-    } else {
-      // If no result ID, navigate to a safe location
-      navigate('/dashboard');
+    try {
+      const token = localStorage.getItem('token');
+
+      // Format the submission data
+      const submissions = Object.keys(answers).map(questionId => ({
+        question_id: parseInt(questionId),
+        answer: answers[questionId]
+      }));
+
+      const payload = {
+        exam_id: parseInt(examId),
+        submissions
+      };
+
+      console.log("Submitting exam payload:", payload);
+
+      const response = await fetch('http://localhost:8000/api/v1/submissions/exam', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to submit exam');
+      }
+
+      const result = await response.json();
+      console.log("Submission result:", result);
+
+      // Navigate to results page with the result ID, not the exam ID
+      if (result && result.id) {
+        navigate(`/results/${result.id}`);
+      } else {
+        // If no result ID, navigate to a safe location
+        navigate('/dashboard');
+      }
+
+    } catch (err) {
+      console.error("Error submitting exam:", err);
+      setError(err.message);
+      setSubmitting(false);
     }
-
-  } catch (err) {
-    console.error("Error submitting exam:", err); // Add logging
-    setError(err.message);
-    setSubmitting(false);
-  }
-};
+  };
 
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
@@ -255,100 +296,125 @@ const TakeExam = () => {
   };
 
   if (loading) {
-    return <div className="text-center mt-10">Loading exam...</div>;
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Header isLoggedIn={!!userData} userRole={userData?.role} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center mt-10">Loading exam...</div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
+      <div className="min-h-screen bg-gray-100">
+        <Header isLoggedIn={!!userData} userRole={userData?.role} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+            <button
+              onClick={() => navigate('/exams')}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Back to Exams
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => navigate('/exams')}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Back to Exams
-        </button>
       </div>
     );
   }
 
   if (!exam) {
-    return <div className="text-center mt-10">Exam not found</div>;
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Header isLoggedIn={!!userData} userRole={userData?.role} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center mt-10">Exam not found</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
-      <div className="flex justify-between items-center mb-6 border-b pb-4">
-        <h2 className="text-2xl font-bold">{exam.title}</h2>
-        <div className="text-xl font-semibold text-red-600">
-          Time Remaining: {formatTime(timeRemaining)}
+    <div className="min-h-screen bg-gray-100">
+      <Header isLoggedIn={!!userData} userRole={userData?.role} />
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
+          <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold">{exam.title}</h2>
+            <div className="text-xl font-semibold text-red-600">
+              Time Remaining: {formatTime(timeRemaining)}
+            </div>
+          </div>
+
+          {questions.length > 0 ? (
+            <>
+              <div className="grid grid-cols-8 gap-2 mb-6">
+                {questions.map((q, index) => (
+                  <button
+                    key={q.id}
+                    onClick={() => setCurrentQuestion(index)}
+                    className={`p-2 border rounded-md text-center ${
+                      currentQuestion === index
+                        ? 'bg-blue-600 text-white'
+                        : answers[q.id]
+                          ? 'bg-green-100'
+                          : 'bg-gray-100'
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+
+              {renderQuestionContent()}
+
+              <div className="flex justify-between mt-6">
+                <button
+                  onClick={goToPrevQuestion}
+                  disabled={currentQuestion === 0}
+                  className={`px-4 py-2 border rounded-md ${
+                    currentQuestion === 0 ? 'bg-gray-200 text-gray-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Previous
+                </button>
+
+                {currentQuestion < questions.length - 1 ? (
+                  <button
+                    onClick={goToNextQuestion}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubmitExam}
+                    disabled={submitting}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    {submitting ? 'Submitting...' : 'Submit Exam'}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-center p-6">
+              <p className="text-lg">This exam has no questions.</p>
+              <button
+                onClick={() => navigate('/exams')}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Back to Exams
+              </button>
+            </div>
+          )}
         </div>
       </div>
-
-      {questions.length > 0 ? (
-        <>
-          <div className="grid grid-cols-8 gap-2 mb-6">
-            {questions.map((q, index) => (
-              <button
-                key={q.id}
-                onClick={() => setCurrentQuestion(index)}
-                className={`p-2 border rounded-md text-center ${
-                  currentQuestion === index
-                    ? 'bg-blue-600 text-white'
-                    : answers[q.id]
-                      ? 'bg-green-100'
-                      : 'bg-gray-100'
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
-          </div>
-
-          {renderQuestionContent()}
-
-          <div className="flex justify-between mt-6">
-            <button
-              onClick={goToPrevQuestion}
-              disabled={currentQuestion === 0}
-              className={`px-4 py-2 border rounded-md ${
-                currentQuestion === 0 ? 'bg-gray-200 text-gray-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Previous
-            </button>
-
-            {currentQuestion < questions.length - 1 ? (
-              <button
-                onClick={goToNextQuestion}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmitExam}
-                disabled={submitting}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                {submitting ? 'Submitting...' : 'Submit Exam'}
-              </button>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="text-center p-6">
-          <p className="text-lg">This exam has no questions.</p>
-          <button
-            onClick={() => navigate('/exams')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Back to Exams
-          </button>
-        </div>
-      )}
     </div>
   );
 };

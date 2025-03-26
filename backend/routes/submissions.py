@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Any, List
 from datetime import datetime
@@ -95,7 +95,7 @@ def submit_answer(
         new_submission.is_correct = is_correct
         new_submission.points_earned = points
         new_submission.graded_at = datetime.now()
-    elif question.question_type == QuestionType.SHORT_ANSWER:
+    elif question.question_type in [QuestionType.SHORT_ANSWER, QuestionType.DESCRIPTIVE]:
         # Semi-automatic grading for short answers
         is_correct, points, feedback = grade_descriptive_submission(
             question,
@@ -183,6 +183,7 @@ def submit_exam(
             new_submission.points_earned = points
             points_earned += points
             new_submission.graded_at = datetime.now()
+
         elif question.question_type == QuestionType.SHORT_ANSWER:
             # Semi-automatic grading for short answers
             is_correct, points, feedback = grade_descriptive_submission(
@@ -194,7 +195,14 @@ def submit_exam(
             points_earned += points
             new_submission.grading_feedback = feedback
             new_submission.graded_at = datetime.now()
-        # For descriptive answers, leave grading to teachers
+
+        elif question.question_type == QuestionType.DESCRIPTIVE:
+            # Automatic grading for descriptive answers too
+            is_correct, points, feedback = grade_descriptive_submission(question, sub.answer)
+            new_submission.is_correct = is_correct
+            new_submission.points_earned = points
+            new_submission.grading_feedback = feedback
+            new_submission.graded_at = datetime.now()
 
         submissions.append(new_submission)
 
@@ -244,10 +252,16 @@ def get_exam_results(
     # Check permissions
     if current_user.role in [UserRole.TEACHER, UserRole.ADMIN]:
         # Teachers and admins can see all results
-        results = db.query(Result).filter(Result.exam_id == exam_id).all()
+        # Use join to include student data
+        results = db.query(Result).options(
+            joinedload(Result.student),
+            joinedload(Result.exam)
+        ).filter(Result.exam_id == exam_id).all()
     else:
         # Students can only see their own results
-        results = db.query(Result).filter(
+        results = db.query(Result).options(
+            joinedload(Result.exam)
+        ).filter(
             Result.exam_id == exam_id,
             Result.student_id == current_user.id
         ).all()
@@ -381,10 +395,16 @@ def get_all_results(
     # Check permissions
     if current_user.role in [UserRole.TEACHER, UserRole.ADMIN]:
         # Teachers and admins can see all results
-        results = db.query(Result).all()
+        # Use join to include student and exam data
+        results = db.query(Result).options(
+            joinedload(Result.student),
+            joinedload(Result.exam)
+        ).all()
     else:
         # Students can only see their own results
-        results = db.query(Result).filter(Result.student_id == current_user.id).all()
+        results = db.query(Result).options(
+            joinedload(Result.exam)
+        ).filter(Result.student_id == current_user.id).all()
 
     return results
 
@@ -409,3 +429,81 @@ def get_user_results(
     results = db.query(Result).filter(Result.student_id == user_id).all()
 
     return results
+
+@router.get("/results/{result_id}", response_model=ResultResponse)
+def get_result(
+    result_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Get a specific result by id. Teachers and admins can see any result.
+    Students can only see their own results.
+    """
+    # Get result
+    result = db.query(Result).filter(Result.id == result_id).first()
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Result not found"
+        )
+
+    # Check permissions
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN] and result.student_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view this result"
+        )
+
+    return result
+
+
+from grading.grading_report import generate_submission_report, generate_exam_grading_report
+
+
+@router.get("/report/submission/{submission_id}")
+def get_submission_report(
+        submission_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+) -> Any:
+    # Check permissions
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submission not found"
+        )
+
+    # Students can only see their own submissions
+    if current_user.role == UserRole.STUDENT and submission.student_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view this submission"
+        )
+
+    return generate_submission_report(submission_id, db)
+
+
+@router.get("/report/exam/{result_id}")
+def get_exam_report(
+        result_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+) -> Any:
+    # Check permissions
+    result = db.query(Result).filter(Result.id == result_id).first()
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Result not found"
+        )
+
+    # Students can only see their own results
+    if current_user.role == UserRole.STUDENT and result.student_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view this result"
+        )
+
+    return generate_exam_grading_report(result_id, db)
